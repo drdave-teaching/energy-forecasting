@@ -117,7 +117,7 @@ jobs:
           URL="$(gcloud run services describe "${SERVICE_NAME}" --region="${REGION}" --format='value(status.url)')"
           echo "Your dashboard: ${URL}"
           echo "### Your dashboard is live: ${URL}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Paste this link in your Lab 6 submission. The first visit after a quiet spell takes ~10 seconds to wake up." >> "$GITHUB_STEP_SUMMARY"
+          echo "Share it anywhere: it shows nicknames only. The first visit after a quiet spell takes ~10 seconds to wake up." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Smoke test (the page answers)
         if: steps.gate.outputs.on == 'true'

@@ -17,7 +17,7 @@ Everything to change (colors, files, time zone) is in the `SETTINGS` dictionary 
 Make it yours: add a chart, change the colors, explain your model in a sentence or two. Every change you push to
 `dashboard/` redeploys the page by itself.
 
-## Put it on Google Cloud Run (Lab 6, about 5 minutes, no keys)
+## Put it on Google Cloud Run (Lab 6, optional, about 5 minutes, no keys)
 
 1. On GitHub, open your `energy-forecasting` fork and click **Sync fork → Update branch** (this brings in
    `dashboard/` and the workflow `Deploy dashboard (Cloud Run)`).
@@ -25,8 +25,8 @@ Make it yours: add a chart, change the colors, explain your model in a sentence 
    name `DASHBOARD_NICKNAME`, value = your leaderboard nickname (not your name or NetID).
 3. **Actions → Deploy dashboard (Cloud Run) → Run workflow**. In about 3 minutes it turns green, and the run's
    **Summary** shows your link, like `https://energy-dashboard-abc123-uc.a.run.app`.
-4. Open the link (the first visit after a quiet spell takes about 10 seconds to wake up), then paste it in your Lab 6
-   submission.
+4. Open the link (the first visit after a quiet spell takes about 10 seconds to wake up). Optional, no points:
+   a nice thing to show an employer.
 
 How it works: GitHub builds a container from [`Dockerfile`](Dockerfile), pushes it to Artifact Registry in your
 project, and deploys it to Cloud Run as a public page that scales to zero when no one is looking (inside the free
