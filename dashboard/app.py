@@ -259,7 +259,7 @@ except Exception as err:
 
 if forecasts is None or load is None:
     st.warning("Did not find energy/datasets/forecasts_master.csv and energy/datasets/ct_load_5min_hourly_master.csv. "
-               "Is forecast-24h running every hour?")
+               "Has your model been shipped, and is your forecast function running every hour?")
     st.stop()
 
 actual = load.copy()
