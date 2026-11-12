@@ -1,20 +1,22 @@
 """
-Your own energy forecast dashboard (OPTIONAL, no points).
+Your own energy forecast dashboard (Lab 6).
 
 A public Streamlit page that shows what your forecast-24h Cloud Function is doing right now:
   - your next 24 hours (low, expected and high) next to ISO New England's own forecast
+  - My models: every model you shipped, and how each one scored live (nothing you ship is ever deleted)
   - how your past forecasts did against the real load, scored the same way as the class leaderboard
   - the Bradley Airport temperature forecast your model is reading
 
 It only READS the files your energy project already writes to gs://<your bucket>/energy/. It never writes anything.
 
-Run it three ways (see dashboard/README.md):
-  1. Cloud Shell:  streamlit run dashboard/app.py --server.port 8080   then Web Preview -> port 8080
-  2. Your laptop:  copy your energy/ folder down, then pick "A folder on this computer" in the sidebar
-  3. Streamlit Community Cloud (free, public link): a read-only service account key goes in the app's Secrets box,
-     NEVER in your GitHub repo.
+Run it (see dashboard/README.md):
+  1. Google Cloud Run (Lab 6): set the repo variable DASHBOARD_NICKNAME, run "Deploy dashboard (Cloud Run)"
+  2. Cloud Shell:  streamlit run dashboard/app.py --server.port 8080   then Web Preview -> port 8080
+  3. Your laptop:  copy your energy/ folder down, then pick "A folder on this computer" in the sidebar
+  4. Streamlit Community Cloud: a read-only service account key goes in the app's Secrets box, NEVER in GitHub.
 """
 import io
+import json
 import os
 
 import numpy as np
@@ -89,6 +91,39 @@ def read_table(kind, where, name):
     if not blob.exists():
         return None
     return pd.read_csv(io.BytesIO(blob.download_as_bytes()))
+
+
+@st.cache_data(ttl=SETTINGS["refresh_minutes"] * 60, show_spinner=False)
+def read_model_cards(kind, where):
+    """Every model card you ever shipped (energy/models/history/model_card_<time>.json), oldest first."""
+    folder = SETTINGS["energy_prefix"] + "/models/history/"
+    cards = []
+    if kind == "folder":
+        full_folder = os.path.join(where, folder)
+        if os.path.isdir(full_folder):
+            for name in sorted(os.listdir(full_folder)):
+                if name.startswith("model_card_") and name.endswith(".json"):
+                    with open(os.path.join(full_folder, name), encoding="utf-8") as f:
+                        cards.append(json.load(f))
+    else:
+        for blob in gcs_bucket(where).list_blobs(prefix=folder + "model_card_"):
+            if blob.name.endswith(".json"):
+                cards.append(json.loads(blob.download_as_text()))
+    return cards
+
+
+def model_label(card):
+    """A friendly name for a model card: which lab it came from."""
+    if "starter" in str(card.get("champion", "")):
+        return "Starter model"
+    method = str(card.get("range_method", "none"))
+    if method == "hrrr_qrf_pooled":
+        if "tuning" in card:
+            return "Lab 6D: tuned range"
+        return "Lab 6C: range"
+    if method in ["quantile_models", "offsets_by_hour"]:
+        return "Range model"
+    return "Lab 5: expected value"
 
 
 def to_utc(column):
@@ -231,6 +266,8 @@ actual = actual.set_index("hour")["load_mw_5min_avg"].sort_index()
 for column in ["predicted_low_mw", "predicted_high_mw"]:
     if column not in forecasts.columns:
         forecasts[column] = np.nan
+if "model_version" not in forecasts.columns:
+    forecasts["model_version"] = "unknown"
 
 # ---------------------------------------------------------------------------------------------------------------
 # Headline numbers for the last N days
@@ -255,6 +292,60 @@ else:
                    help="Aim for about 80%. Much lower = range too narrow; much higher = range too wide.")
     cols[4].metric("Average range width (MW)", show_number(recent["range_width_mw"].mean(), ""))
     cols[5].metric("ISO-NE average error, same hours (MW)", show_number(recent["isone_abs_error_mw"].mean(), ""))
+
+# ---------------------------------------------------------------------------------------------------------------
+# My models: every model you shipped, and how each one did live (all hours, not just the last N days)
+# ---------------------------------------------------------------------------------------------------------------
+st.subheader("My models")
+st.caption("Every model you ship is saved in energy/models/history/ and never deleted, and every forecast your models "
+           "made stays in energy/datasets/forecasts_master.csv. Shipping a new model replaces the one that forecasts "
+           "from now on; it does not erase your old models or their scores.")
+try:
+    cards = read_model_cards(kind, where)
+except Exception as err:
+    cards = []
+    st.caption(f"(Could not list energy/models/history/: {type(err).__name__})")
+card_by_version = {}
+for card in cards:
+    card_by_version[str(card.get("trained_at", "unknown"))] = card
+versions = []
+for version in forecasts["model_version"].astype(str).tolist():
+    if version not in versions:
+        versions.append(version)
+for version in card_by_version:
+    if version not in versions:
+        versions.append(version)
+versions = sorted(versions)                              # trained_at times sort in time order
+live_version = str(forecasts["model_version"].astype(str).iloc[-1])
+model_rows = []
+for version in versions:
+    card = card_by_version.get(version, {})
+    made = forecasts[forecasts["model_version"].astype(str) == version]
+    scored = pairs[pairs["model_version"].astype(str) == version] if len(pairs) > 0 else pairs
+    notebook_score = card.get("test_crps_mw_12h", card.get("test_mae_mw"))
+    shipped = to_local(to_utc(pd.Series([version]))).iloc[0] if version not in ["unknown", "nan"] else None
+    if version == live_version:
+        status = "forecasting now"
+    elif len(made) == 0:
+        status = "shipped, never forecast"
+    else:
+        status = "saved (replaced)"
+    model_rows.append({
+        "Model": model_label(card) if card else "Model (no card found)",
+        "Shipped (CT)": shipped.strftime("%a %b %d, %I:%M %p") if shipped is not None else "unknown",
+        "Type": card.get("model_type", ""),
+        "Notebook test score (MW)": notebook_score,
+        "Live hours scored": int(len(scored)),
+        "Live CRPS skill (%)": None if len(scored) == 0 else round(skill_pct(scored), 1),
+        "Live avg miss (MW)": None if len(scored) == 0 else round(float(scored["abs_error_mw"].mean()), 1),
+        "Inside range (%)": None if len(scored) == 0 or scored["inside_range"].isna().all()
+        else round(100 * float(scored["inside_range"].mean()), 1),
+        "Status": status,
+    })
+st.dataframe(pd.DataFrame(model_rows), width="stretch", hide_index=True)
+st.caption("Notebook test score = what your notebook printed for this model on 2026 (Lab 5: test MAE; Lab 6: CRPS "
+           "12 hours ahead), using the weather that actually happened. Live numbers use every hour this model "
+           "forecast that has been scored.")
 
 # ---------------------------------------------------------------------------------------------------------------
 # Chart 1: the next 24 hours
