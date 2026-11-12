@@ -1,5 +1,5 @@
 """
-Your own energy forecast dashboard (Lab 6).
+Your own energy forecast dashboard (OPIM 5512 Lab 6; OPIM 5509 forks work too).
 
 A public Streamlit page that shows what your forecast-24h Cloud Function is doing right now:
   - your next 24 hours (low, expected and high) next to ISO New England's own forecast
@@ -44,6 +44,8 @@ SETTINGS = {
     "colors": {"expected": "#1f4e9c", "range": "rgba(31, 78, 156, 0.18)", "actual": "#111111",
                "isone": "#d9822b", "baseline": "#8a8a8a", "temp": "#c0392b"},
 }
+
+COURSE = os.getenv("COURSE", "").strip() or "5512"          # repo variable COURSE (5509 forks set it); 5512 by default
 
 st.set_page_config(page_title="My Connecticut load forecast", layout="wide")
 
@@ -114,6 +116,8 @@ def read_model_cards(kind, where):
 
 def model_label(card):
     """A friendly name for a model card: which lab it came from."""
+    if COURSE != "5512":                                  # OPIM 5509: Keras models, no Lab 5/6 names
+        return str(card.get("model_name", card.get("model_type", "Model")))
     if "starter" in str(card.get("champion", "")):
         return "Starter model"
     method = str(card.get("range_method", "none"))
@@ -236,7 +240,7 @@ with st.sidebar:
 
 st.title(f"{nickname}: Connecticut's electricity load, next 24 hours")
 st.caption("A forecast made every hour by my own model running on Google Cloud. Times are Connecticut time. "
-           "Scored the same way as the OPIM 5512 class leaderboard.")
+           f"Scored the same way as the OPIM {COURSE} class leaderboard.")
 
 if not where:
     st.info("Type your bucket name (or a folder) in the sidebar to start.")
@@ -343,8 +347,8 @@ for version in versions:
         "Status": status,
     })
 st.dataframe(pd.DataFrame(model_rows), width="stretch", hide_index=True)
-st.caption("Notebook test score = what your notebook printed for this model on 2026 (Lab 5: test MAE; Lab 6: CRPS "
-           "12 hours ahead), using the weather that actually happened. Live numbers use every hour this model "
+st.caption("Notebook test score = the test score your notebook saved in this model's card (MAE, or CRPS 12 hours "
+           "ahead for a range), using the weather that actually happened. Live numbers use every hour this model "
            "forecast that has been scored.")
 
 # ---------------------------------------------------------------------------------------------------------------
