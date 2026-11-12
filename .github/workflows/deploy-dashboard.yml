@@ -1,5 +1,5 @@
 name: Deploy dashboard (Cloud Run)
-# YOUR forecast dashboard as a public web page on Google Cloud Run (OPIM 5512 Lab 6; OPIM 5509 forks work too).
+# YOUR forecast dashboard as a public web page on Google Cloud Run (OPIM 5512 Lab 6).
 # It only READS your bucket. Turn it on by adding the repository variable DASHBOARD_NICKNAME
 # (your leaderboard nickname), then run this workflow from the Actions tab. After that, every change
 # you push to dashboard/ redeploys it.
@@ -24,7 +24,6 @@ env:
   DEPLOYER_SA: ${{ vars.DEPLOYER_SA }}
   WORKLOAD_IDENTITY_PROVIDER: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
   NICKNAME: ${{ vars.DASHBOARD_NICKNAME }}
-  COURSE: ${{ vars.COURSE || '5512' }}               # 5509 forks set COURSE = 5509: the page says OPIM 5509
   SERVICE_NAME: energy-dashboard
   SOURCE_DIR: dashboard
 
@@ -99,7 +98,7 @@ jobs:
           retry() { local n=1; until "$@"; do if [ "$n" -ge 5 ]; then return 1; fi; echo "::warning::Attempt $n failed. Retrying in $((n*20))s..."; sleep $((n*20)); n=$((n+1)); done; }
           python3 - <<'PY'
           import json, os
-          env = {"ENERGY_BUCKET": os.environ["BUCKET_NAME"], "DASHBOARD_NICKNAME": os.environ["NICKNAME"], "COURSE": os.environ["COURSE"]}
+          env = {"ENERGY_BUCKET": os.environ["BUCKET_NAME"], "DASHBOARD_NICKNAME": os.environ["NICKNAME"]}
           json.dump(env, open("/tmp/dash_env.json", "w"))
           PY
           retry gcloud run deploy "${SERVICE_NAME}" \
